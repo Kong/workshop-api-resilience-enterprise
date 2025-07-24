@@ -1,0 +1,261 @@
+# Specify which Kong image to run
+x-kong-image: &kong-image
+  image: ${KONG_IMAGE_REGISTRY}/${KONG_IMAGE_NAME}:${KONG_IMAGE_TAG}
+
+# Kong license configuration
+x-kong-license: &kong-license
+  KONG_LICENSE_DATA: ${KONG_LICENSE_DATA:?err}
+
+# Kong database configuration
+x-kong-db-config: &kong-db-config
+  KONG_DATABASE: postgres
+  KONG_PG_HOST: db
+  KONG_PG_DATABASE: kong
+  KONG_PG_USER: kong
+  KONG_PG_PASSWORD: kong
+  KONG_PASSWORD: password
+
+# Common config values
+x-kong-common-config:
+  &kong-common-config
+  KONG_PREFIX: "/tmp/kong"
+  KONG_VITALS: "off"
+  KONG_LOG_LEVEL: "notice"
+  KONG_PLUGINS: "bundled"
+
+# Common configuration for Kong containers
+x-kong-container-common: &kong-container-common
+  <<: *kong-image
+  healthcheck:
+    test: ["CMD", "kong", "health"]
+    interval: 3s
+    timeout: 3s
+    retries: 10
+    start_period: 3s
+  restart: on-failure
+  tmpfs:
+    - /tmp
+
+networks:
+  kong-net:
+    name: kong-net
+    driver: bridge
+
+services:
+  kong-migrations:
+    <<: *kong-container-common
+    networks:
+      - kong-net
+    command: "kong migrations bootstrap"
+    environment:
+      <<: [*kong-license, *kong-db-config]
+    restart: on-failure
+
+  kong-migrations-upgrade:
+    <<: *kong-container-common
+    profiles: ["upgrade", "everything"]
+    networks:
+      - kong-net
+    command: "kong migrations up"
+    environment:
+      <<: [*kong-license, *kong-db-config]
+    restart: on-failure
+
+  kong-migrations-finish:
+    <<: *kong-container-common
+    profiles: ["upgrade-finish", "everything"]
+    networks:
+      - kong-net
+    command: "kong migrations finish"
+    environment:
+      <<: [*kong-license, *kong-db-config]
+    restart: on-failure
+
+  kong-control-plane:
+    <<: *kong-container-common
+    deploy:
+      replicas: 1
+    mem_limit: 2g
+    cpus: 4
+    container_name: ${KONG_CP_CONTAINER_NAME}
+    networks:
+      - kong-net
+    volumes:
+      - ./certs/:/etc/secrets/kong-cluster/
+    user: "${KONG_USER:-kong}"
+    ports:
+      - "8001:8001"
+      - "8002:8002"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: [ *kong-license, *kong-db-config, *kong-common-config ]
+      KONG_PROXY_LISTEN: "off"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_ADMIN_GUI_LISTEN: "0.0.0.0:8002"
+      KONG_ROLE: "control_plane"
+      KONG_CLUSTER_MTLS: "shared"
+      KONG_CLUSTER_CERT: /etc/secrets/kong-cluster/tls.crt
+      KONG_CLUSTER_CERT_KEY: /etc/secrets/kong-cluster/tls.key
+      KONG_PLUGINS: bundled,chaos-experiments
+
+  db:
+    networks:
+      - kong-net
+    image: postgres:14-alpine
+    container_name: kong-db
+    hostname: kong-db
+    environment:
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+      POSTGRES_USER: kong
+    ports:
+      - "5432:5432"  
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
+
+  kong-data-plane:
+    <<: *kong-container-common
+    deploy:
+      replicas: 1
+    mem_limit: 2g
+    cpus: 4
+    container_name: ${KONG_DP_CONTAINER_NAME}
+    networks:
+      - kong-net
+    volumes:
+      - ./certs/:/etc/secrets/kong-cluster/
+    user: "${KONG_USER:-kong}"
+    ports:
+      - "8000:8000"
+      - "8100:8100"
+    depends_on:
+      kong-control-plane:
+        condition: service_healthy
+    environment:
+      <<: [ *kong-license, *kong-common-config ]
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "off"
+      KONG_ADMIN_GUI_LISTEN: "off"
+      KONG_ROLE: "data_plane"
+      KONG_CLUSTER_CERT: /etc/secrets/kong-cluster/tls.crt
+      KONG_CLUSTER_CERT_KEY: /etc/secrets/kong-cluster/tls.key
+      KONG_CLUSTER_CONTROL_PLANE: "kong-control-plane:8005"
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: "kong-control-plane:8006"
+      KONG_DATABASE: "off"
+      KONG_PLUGINS: bundled,chaos-experiments
+      KONG_TRACING_INSTRUMENTATIONS: all
+      KONG_TRACING_SAMPLING_RATE: 1.0
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+
+  kongair-routes:
+    # image: mohitjainkong/kongair-routes:1.1
+    # # image: mohitjainkong/kongair-routes:2.1
+    image: ${KONG_MS_IMAGE_REGISTRY}/${KONG_MS_IMAGE_NAME}:${KONG_MS_IMAGE_TAG}
+    # image: kongair-routes:workshop-delays-latest
+    container_name: ${KONG_MS_CONTAINER_NAME}
+    hostname: routes.kongair
+    restart: on-failure
+    networks:
+      - kong-net
+    ports:
+      - "5053:80"
+
+  fluentbit:
+    image: fluent/fluent-bit:3.1.2
+    container_name: fluentbit
+
+    command:
+      - --config=/fluent-bit/etc/fluent-bit.yaml
+    networks:
+      - kong-net
+    volumes:
+      - ./fluent-bit/fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.101.0
+    container_name: otel-collector
+
+    networks:
+      - kong-net
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --enable-feature=otlp-write-receiver
+    ports:
+      - "9090:9090"
+    hostname: prometheus
+    networks:
+      - kong-net
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+
+    command: ["-config.file=/mnt/config/loki-config.yaml"]
+    volumes:
+      - ./loki/config.yaml:/mnt/config/loki-config.yaml
+    networks:
+      - kong-net
+
+  grafana:
+    image: grafana/grafana-oss:12.0.1
+    container_name: grafana
+
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources/
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards/
+    ports:
+      - "3000:3000"
+    networks:
+      - kong-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: jaeger
+
+    ports:
+      - "16686:16686"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - kong-net
+
+  deck:
+    networks:
+      - kong-net
+    image: kong/deck:v1.45.0
+
+    user: root
+    depends_on:
+      kong-control-plane:
+        condition: service_healthy
+    volumes:
+      - ./deck:/tmp/deck
+      - ./kong-air:/tmp/kong-air
+      - ./platform:/tmp/platform
+      - ./deck-init-apply.sh:/tmp/deck-init-apply.sh
+    environment:
+      DECK_ANALYTICS: "off"
+      DECK_ADDR: "http://kong-control-plane:8001"
+      DECK_HEADERS: "kong-admin-token:password"
+    entrypoint: ["/bin/sh", "-c", "/tmp/deck-init-apply.sh"]

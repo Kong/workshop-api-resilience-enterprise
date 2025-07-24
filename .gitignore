@@ -1,0 +1,11 @@
+certs/*
+tls.crt 
+tls.key
+
+.idea
+.idea/*
+
+.DS_Store
+
+token
+./certs/*

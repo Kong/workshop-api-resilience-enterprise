@@ -1,0 +1,12 @@
+FROM kong/kong-gateway:3.9-rhel
+
+ENV KONG_CHAOS_PLUGIN_NAME="kong-plugin-chaos-experiments-0.1.0-1.src.rock"
+
+USER root
+WORKDIR /tmp
+RUN yum install unzip -y
+COPY "${KONG_CHAOS_PLUGIN_NAME}" .
+RUN luarocks install "./${KONG_CHAOS_PLUGIN_NAME}"
+
+WORKDIR /
+USER kong

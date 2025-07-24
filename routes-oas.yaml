@@ -1,0 +1,521 @@
+openapi: 3.0.0
+info:
+  title: KongAir Routes Service
+  description: |
+    KongAir Routes service provides information about all registered flight routes between origin and destination airports.
+    This API allows users to query all available routes or get details about specific routes by their ID.
+  version: 0.1.0
+  contact:
+    name: KongAir API Support
+    email: api-support@kongair.example.com
+    url: https://kongair.example.com/support
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: http://localhost:8000
+    description: Local Development Server
+  - url: https://api.kongair.example.com/v1
+    description: Production API Server
+tags:
+  - name: flight-data
+    description: Operations related to flight routes data
+  - name: health
+    description: Health check operations for system monitoring
+paths:
+  /health:
+    get:
+      summary: Health check endpoint for Kubernetes
+      description: Endpoint that returns the service health status for monitoring and load balancer checks.
+      tags:
+        - health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy and operating normally
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "OK"
+                version: "0.1.0"
+                timestamp: "2025-04-03T12:34:56Z"
+        '500':
+          description: Service is unhealthy or experiencing issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "unhealthy"
+                version: "0.1.0"
+                timestamp: "2025-04-03T12:34:56Z"
+                error: "Database connection failed"
+  /routes/{id}:
+    get:
+      summary: Get a specific KongAir route by ID
+      description: |
+        Returns details for a specific route identified by its unique route ID (e.g., "LHR-SIN").
+        The route ID is typically formed by joining the origin and destination airport codes.
+      tags:
+        - flight-data
+      operationId: getRouteById
+      parameters:
+        - name: id
+          in: path
+          description: The unique identifier for the route, typically in the format "ORIGIN-DESTINATION" (e.g., "LHR-SFO")
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}-[A-Z]{3}$'
+            example: "LHR-SFO"
+      responses:
+        '200':
+          description: Successful response with the found Route
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+              example:
+                id: "LHR-SFO"
+                origin: "LHR"
+                destination: "SFO"
+                avg_duration: 660
+                distance: 5367
+                popularity: 4.8
+        '400':
+          description: Invalid route ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: "Invalid route ID format. Expected format: XXX-YYY (e.g., LHR-SFO)"
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 404
+                message: "Route with ID 'LHR-XYZ' not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /routes:
+    get:
+      summary: Get all KongAir routes
+      description: |
+        Returns all the routes KongAir is currently registered to fly.
+        A Route is a pairing between origin and destination airport codes.
+        Results can be filtered by origin and/or destination airport.
+      tags:
+        - flight-data
+      operationId: getRoutes
+      parameters:
+        - name: origin
+          in: query
+          description: Filter routes by origin airport code(s)
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              pattern: '^[A-Z]{3}$'
+              example: "LHR"
+        - name: destination
+          in: query
+          description: Filter routes by destination airport code(s)
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+              pattern: '^[A-Z]{3}$'
+              example: "SFO"
+        - name: min_duration
+          in: query
+          description: Filter routes by minimum flight duration in minutes
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 120
+        - name: max_duration
+          in: query
+          description: Filter routes by maximum flight duration in minutes
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 720
+        - name: limit
+          in: query
+          description: Maximum number of routes to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+        - name: offset
+          in: query
+          description: Number of routes to skip for pagination
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Successful response with the list of registered Routes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: Total number of routes matching the query parameters
+                    example: 156
+                  limit:
+                    type: integer
+                    description: Maximum number of routes returned
+                    example: 100
+                  offset:
+                    type: integer
+                    description: Number of routes skipped
+                    example: 0
+                  routes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Route'
+              examples:
+                all-routes:
+                  summary: Example with multiple routes
+                  value:
+                    total: 156
+                    limit: 100
+                    offset: 0
+                    routes:
+                      - id: "LHR-SFO"
+                        origin: "LHR"
+                        destination: "SFO"
+                        avg_duration: 660
+                        distance: 5367
+                        popularity: 4.8
+                      - id: "LHR-JFK"
+                        origin: "LHR"
+                        destination: "JFK"
+                        avg_duration: 440
+                        distance: 3451
+                        popularity: 4.9
+                filtered-routes:
+                  summary: Example with filtered routes (origin=LHR)
+                  value:
+                    total: 24
+                    limit: 100
+                    offset: 0
+                    routes:
+                      - id: "LHR-SFO"
+                        origin: "LHR"
+                        destination: "SFO"
+                        avg_duration: 660
+                        distance: 5367
+                        popularity: 4.8
+                      - id: "LHR-JFK"
+                        origin: "LHR"
+                        destination: "JFK"
+                        avg_duration: 440
+                        distance: 3451
+                        popularity: 4.9
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: "Invalid origin airport code format. Expected format: XXX (e.g., LHR)"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a new route
+      description: Add a new flight route to the KongAir system
+      tags:
+        - flight-data
+      operationId: createRoute
+      requestBody:
+        description: Route details to be added
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCreate'
+            example:
+              origin: "SFO"
+              destination: "HKG"
+              avg_duration: 820
+              distance: 6927
+      responses:
+        '201':
+          description: Route successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+              example:
+                id: "SFO-HKG"
+                origin: "SFO"
+                destination: "HKG"
+                avg_duration: 820
+                distance: 6927
+                popularity: 0.0
+        '400':
+          description: Invalid route data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Route already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /routes/{id}/schedule:
+    get:
+      summary: Get schedule information for a specific route
+      description: |
+        Returns schedule information for flights operating on a specific route,
+        including departure and arrival times, flight numbers, and frequencies.
+      tags:
+        - flight-data
+      operationId: getRouteSchedule
+      parameters:
+        - name: id
+          in: path
+          description: The unique identifier for the route
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}-[A-Z]{3}$'
+            example: "LHR-SFO"
+        - name: date_from
+          in: query
+          description: Start date for schedule information (ISO format)
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2025-04-10"
+        - name: date_to
+          in: query
+          description: End date for schedule information (ISO format)
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2025-04-17"
+      responses:
+        '200':
+          description: Successful response with schedule information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteSchedule'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Route:
+      type: object
+      description: A flight route between two airports
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the route (typically ORIGIN-DESTINATION)
+          example: "LHR-SFO"
+        origin:
+          type: string
+          description: Three-letter IATA code for the origin airport
+          pattern: '^[A-Z]{3}$'
+          example: "LHR"
+        destination:
+          type: string
+          description: Three-letter IATA code for the destination airport
+          pattern: '^[A-Z]{3}$'
+          example: "SFO"
+        avg_duration:
+          type: integer
+          description: Average flight duration in minutes
+          minimum: 0
+          example: 660
+        distance:
+          type: integer
+          description: Distance between airports in kilometers
+          minimum: 0
+          example: 5367
+        popularity:
+          type: number
+          description: Route popularity rating from 0.0 to 5.0
+          minimum: 0
+          maximum: 5
+          example: 4.8
+      required:
+        - id
+        - origin
+        - destination
+        - avg_duration
+    RouteCreate:
+      type: object
+      description: Data model for creating a new route
+      properties:
+        origin:
+          type: string
+          description: Three-letter IATA code for the origin airport
+          pattern: '^[A-Z]{3}$'
+          example: "LHR"
+        destination:
+          type: string
+          description: Three-letter IATA code for the destination airport
+          pattern: '^[A-Z]{3}$'
+          example: "SFO"
+        avg_duration:
+          type: integer
+          description: Average flight duration in minutes
+          minimum: 0
+          example: 660
+        distance:
+          type: integer
+          description: Distance between airports in kilometers
+          minimum: 0
+          example: 5367
+      required:
+        - origin
+        - destination
+        - avg_duration
+    RouteSchedule:
+      type: object
+      description: Schedule information for a specific route
+      properties:
+        route_id:
+          type: string
+          description: The unique identifier for the route
+          example: "LHR-SFO"
+        flights:
+          type: array
+          description: List of scheduled flights for this route
+          items:
+            type: object
+            properties:
+              flight_number:
+                type: string
+                description: Flight number
+                example: "KA123"
+              departure_time:
+                type: string
+                format: date-time
+                description: Scheduled departure time
+                example: "2025-04-10T08:30:00Z"
+              arrival_time:
+                type: string
+                format: date-time
+                description: Scheduled arrival time
+                example: "2025-04-10T19:30:00Z"
+              days_of_operation:
+                type: array
+                description: Days of the week when this flight operates (1-7, where 1 is Monday)
+                items:
+                  type: integer
+                  minimum: 1
+                  maximum: 7
+                example: [1, 3, 5, 7]
+              aircraft_type:
+                type: string
+                description: Type of aircraft operating the flight
+                example: "Boeing 787-9"
+    HealthResponse:
+      type: object
+      description: Response model for health check endpoint
+      properties:
+        status:
+          type: string
+          description: Health status of the service
+          enum: ["OK", "unhealthy"]
+          example: "OK"
+        version:
+          type: string
+          description: Current version of the service
+          example: "0.1.0"
+        timestamp:
+          type: string
+          format: date-time
+          description: Current server time
+          example: "2025-04-03T12:34:56Z"
+        error:
+          type: string
+          description: Error message if status is unhealthy
+          example: "Database connection failed"
+      required:
+        - status
+    Error:
+      type: object
+      description: Standard error response model
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+          example: 404
+        message:
+          type: string
+          description: Error message
+          example: "Route not found"
+      required:
+        - code
+        - message
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []

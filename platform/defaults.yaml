@@ -1,0 +1,7 @@
+_info:
+  defaults:
+    service:
+      connect_timeout: 1000
+      read_timeout: 3000
+      retries: 2
+      write_timeout: 2000

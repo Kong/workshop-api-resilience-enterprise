@@ -1,0 +1,157 @@
+openapi: 3.0.1
+
+info:
+  description: KongAir Routes service provides the registered routes KongAir flies between origin and destination airports
+  version: 0.1.0
+  title: Routes Service
+  contact:
+    name: KongAir API Support
+    email: api-support@kongair.example.com
+    url: https://kongair.example.com/support
+
+servers:
+- url:  http://routes.kongair:8080
+  description: KongAir API Server
+
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint for Kubernetes
+      description: Endpoint that returns the service health status for monitoring and load balancer checks.
+      tags:
+        - health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy and operating normally
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "OK"
+                version: "0.1.0"
+                timestamp: "2025-04-03T12:34:56Z"
+        '500':
+          description: Service is unhealthy or experiencing issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "unhealthy"
+                version: "0.1.0"
+                timestamp: "2025-04-03T12:34:56Z"
+                error: "Database connection failed"
+  /routes/{id}:
+    get:
+      summary: Request a specific KongAir route by id (LHR-SIN)
+      description: |
+        Returns a specific route from a given Route ID
+      tags:
+      - flight-data
+      operationId: get-route
+      parameters:
+        - name: id
+          in: path
+          description: String route ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response with the found Route
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+        '404':
+          description: Route not found
+  /routes:
+    get:
+      summary: Request all the KongAir routes
+      description: |
+        Returns all the routes KongAir is currently registered to fly.
+        A Route is a pairing between origin and destination airport codes.
+      tags:
+      - flight-data
+      operationId: get-routes
+      parameters:
+        - name: origin
+          in: query
+          description: filter by origin
+          required: false
+          style: form
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Successful response with the registered Routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+              examples:
+                lhr-sfo:
+                  value:
+                   [{
+                      "id": "LHR-SFO",
+                      "origin": "LHR",
+                      "destination": "SFO",
+                      "avg_duration": 660
+                    }]
+
+components:
+  schemas:
+    Route:
+      type: object
+      properties:
+        id:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        avg_duration:
+          type: integer
+      required:
+        - id
+        - origin
+        - destination
+        - avg_duration
+    HealthResponse:
+      type: object
+      description: Response model for health check endpoint
+      properties:
+        status:
+          type: string
+          description: Health status of the service
+          enum: ["OK", "unhealthy"]
+          example: "OK"
+        version:
+          type: string
+          description: Current version of the service
+          example: "0.1.0"
+        timestamp:
+          type: string
+          format: date-time
+          description: Current server time
+          example: "2025-04-03T12:34:56Z"
+        error:
+          type: string
+          description: Error message if status is unhealthy
+          example: "Database connection failed"
+      required:
+        - status
+    
+
+tags:
+  - name: flight-data
+    description: Operations related to flight routes data
+  - name: health
+    description: Health check operations for system monitoring
