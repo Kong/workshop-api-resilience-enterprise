@@ -325,6 +325,18 @@ service should be in a `running (ealthy)` state.
 
 If any service is in an `exited` or `unhealthy` state, investigate further. Be sure to refer to the [**Troubleshooting documentation**](./TROUBLESHOOTING.md#Enterprise-Control-Plane-and-Data-Plane-Connectivity-Issues)
 
+Open up a browser window and navigate to Kong Manager using following address:
+
+```
+http://localhost:8002
+```
+
+
+Alternatively, use the Admin API to check status of the control plane:
+```shell
+curl localhost:8001/status
+```
+
 ## Observability and Monitoring
 
 Monitoring is essential to understand how a systems' services are performing and to detect issues
@@ -338,7 +350,7 @@ Prometheus, Grafana, Jaeger, Loki and Otel-collector components are already incl
 per the instructions outlined in the [`observability tools`](#observability-tools) section. Here we will just need to
 configure the plugins to enable the observability functionality.
 
-1. Add the below configuration to the [**plugins.yaml**](./platform/plugins.yaml) file which will enable the `prometheus` plugin:
+1. Add the below configuration to the [**platform/plugins.yaml**](./platform/plugins.yaml) file which will enable the `prometheus` plugin:
 
     ```yaml
     - name: prometheus
@@ -360,7 +372,7 @@ configure the plugins to enable the observability functionality.
     >
     > Make sure to remove the empty array (`[]`) from the top `plugins:` line, and place the configuration directly under it.
 
-2. Add the below configuration to the [**plugins.yaml**](./platform/plugins.yaml) file which will enable the `http-log` plugin:
+2. Add the below configuration to the [**platform/plugins.yaml**](./platform/plugins.yaml) file which will enable the `http-log` plugin:
 
     ```yaml
     - name: http-log
@@ -377,7 +389,7 @@ configure the plugins to enable the observability functionality.
         http_endpoint: http://fluentbit:8080
     ```
 
-3. Add the below configuration to the [**plugins.yaml**](./platform/plugins.yaml) file which will enable the `opentelemetry` plugin:
+3. Add the below configuration to the [**platform/plugins.yaml**](./platform/plugins.yaml) file which will enable the `opentelemetry` plugin:
 
     ```yaml
     - name: opentelemetry
@@ -419,7 +431,7 @@ discovery mechanism, and consumes data from each node's individually configured 
 
 To enable the `prometheus` plugin in Kong:
 
-1. Using DecK, ensure that the `prometheus` plugin is included in the [**plugins.yaml**](./platform/plugins.yaml) configuration file under plugins
+1. Using DecK, ensure that the `prometheus` plugin is included in the [**platform/plugins.yaml**](./platform/plugins.yaml) configuration file under plugins
 
 2. Apply using DecK
 
@@ -438,10 +450,9 @@ To enable the `prometheus` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
-     PLUGINS_URL="http://<CONTROL_PLANE_HOST>:8001/services/<SERVICE_NAME>/plugins"
-     curl -H "Kong-Admin-Token: $KONG_ADMIN_TOKEN" ${PLUGINS_URL}
+     curl http://localhost:8001/plugins
      ```
 
 ---
@@ -453,7 +464,7 @@ you send request logs and response logs to a specified HTTP server, and supports
 
 Enable the `http-log` plugin in Kong:
 
-1. Using DecK, ensure that the `http-log` plugin is included in the [**plugins.yaml**](./platform/plugins.yaml) configuration file
+1. Using DecK, ensure that the `http-log` plugin is included in the [**platform/plugins.yaml**](./platform/plugins.yaml) configuration file
 
 
 2. Apply using DecK
@@ -473,10 +484,9 @@ Enable the `http-log` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
-     PLUGINS_URL="http://<CONTROL_PLANE_HOST>:8001/services/<SERVICE_NAME>/plugins"
-     curl -H "Kong-Admin-Token: $KONG_ADMIN_TOKEN" ${PLUGINS_URL}
+     curl http://localhost:8001/plugins
      ```
 
 ---
@@ -488,7 +498,7 @@ distributed tracing spans and reports low-level spans to a specified OTLP-compat
 
 Enable the `opentelemetry` plugin in Kong:
 
-1. Using DecK, ensure that the `opentelemetry` plugin is included in the [**plugins.yaml**](./platform/plugins.yaml) configuration file
+1. Using DecK, ensure that the `opentelemetry` plugin is included in the [**platform/plugins.yaml**](./platform/plugins.yaml) configuration file
 
 
 2. Apply using decK
@@ -508,10 +518,9 @@ Enable the `opentelemetry` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
-     PLUGINS_URL="http://<CONTROL_PLANE_HOST>:8001/services/<SERVICE_NAME>/plugins"
-     curl -H "Kong-Admin-Token: $KONG_ADMIN_TOKEN" ${PLUGINS_URL}
+     curl http://localhost:8001/plugins
      ```
 
 ---
@@ -528,7 +537,7 @@ We will be using this document to generate the Kong Gateway configuration.
 Convert the OpenAPI Specification to Kong Configuration:
 
 - The `decK` CLI is used to convert the OpenAPI Specification to Kong configuration
-- Below is the command specified inside the **deck-init-apply.js** file
+- Below is the command specified inside the **deck-init-apply.sh** file
 - This converts the specification while spinning up the instance using deck.
 
 2. Merge Configurations:
@@ -537,7 +546,7 @@ Convert the OpenAPI Specification to Kong Configuration:
 
       > 💡**Note**
       > 
-      > This is handled automatically by the command defined in the [**deck-init-apply.js**](./deck-init-apply.sh)
+      > This is handled automatically by the command defined in the [**deck-init-apply.sh**](./deck-init-apply.sh)
         which runs during container startup via the [**deploy-gateway.sh**](./deploy-gateway.sh) script.
 
    <br/>
@@ -552,7 +561,7 @@ To ensure that Kong Gateway is correctly routing requests to the Routes-Service,
 
 **Steps:**
 
-1. Test the `Get Service Health` endpoint:
+1. Test the `Health check` endpoint:
     
     <br/>
 
@@ -560,7 +569,8 @@ To ensure that Kong Gateway is correctly routing requests to the Routes-Service,
 
     1. Open Insomnia and import a collection present at [**routes-oas.yaml**](./routes-oas.yaml)
 
-    2. In Insomnia, navigate to where the collection has been imported, then navigate to the `/routes` endpoint
+    2. In Insomnia, navigate to where the collection has been imported, then navigate to the `/health` endpoint (name in collection: `health/Health check`). 
+    Choose enviroment "OpenAPI env localhost:8000" to apply pre-configured values in URL templates.
 
     3. Send the request with expected output:
 
@@ -590,7 +600,7 @@ To ensure that Kong Gateway is correctly routing requests to the Routes-Service,
 
     <br/>
 
-2. Test the `Get Routes` endpoint:
+2. Test the `Get all KongAir routes` endpoint:
 
     <br/>
 
@@ -666,7 +676,7 @@ To ensure that Kong Gateway is correctly routing requests to the Routes-Service,
 
     <br/>
 
-3. Test the `Get Route by ID` Endpoint:
+3. Test the `Get a specific KongAir route by ID` Endpoint:
 
     <br/>
 
@@ -752,9 +762,11 @@ In this section, we will generate traffic and visualise it in the Grafana dashbo
 
 3. View Logs in Grafana
 
-    - Click Explore > Logs
+    - Click `Explore > Loki`
 
-    - Click Show Logs to display the log entries
+    - Choose `label filters`: **service_name = kong-http-logs**
+    
+    - Click `Run query` to display the log entries
 
     - Click on any individual log to expand and view its details
 
@@ -784,7 +796,7 @@ Kong Gateway; faults will be injected to simulate failures.
 Simulate errors using the [`Request Termination Plugin`](https://docs.konghq.com/hub/kong-inc/request-termination/)
 Sending a request to this endpoint will respond with a `503 Service Unavailable` status, imitating a down service:
 
-1. Add the `Request Termination` Plugin to the Routes Service. Update the [**plugins.yaml**](./platform/plugins.yaml) 
+1. Add the `Request Termination` Plugin to the Routes Service. Update the [**platform/plugins.yaml**](./platform/plugins.yaml) 
    file to enable the plugin:
 
     ```yaml
@@ -837,7 +849,7 @@ Sending a request to this endpoint will respond with a `503 Service Unavailable`
 
 4. Remove the Plugin After Testing:
 
-    - Disable the plugin configuration from [**plugins.yaml**](./platform/plugins.yaml) by setting the flag `enabled: false`
+    - Disable the plugin configuration from [**platform/plugins.yaml**](./platform/plugins.yaml) by setting the flag `enabled: false`
 
     - Reapply the configuration using the approach in Step 2
 
@@ -865,53 +877,53 @@ simulate this behaviour using health checks and load balancing.
 
 1. Configure Health Checks for the Routes Service:
 
-   Update the [**upstream.yaml**](./platform/upstream.yaml) to include the below configuration:
+   Update [**platform/upstream.yaml**](./platform/upstream.yaml) to include the below configuration:
 
    ```yaml
-      _format_version: "3.0"
-      upstreams:
-      - name: routes.kongair
-        algorithm: round-robin
-        targets:
-        - tags:
-          - resiliency
-          target: routes.kongair:8080
-          weight: 100
-        hash_fallback: none
-        hash_on: none
-        hash_on_cookie_path: "/"
-        healthchecks:
-          active:
-            concurrency: 10
-            healthy:
-              http_statuses: [200, 302]
-              interval: 5
-              successes: 5
-            http_path: "/health"
-            https_verify_certificate: true
-            timeout: 1
-            type: http
-            unhealthy:
-              http_failures: 5
-              http_statuses: [404, 429, 500, 501, 502, 503, 504, 505]
-              interval: 5
-              tcp_failures: 5
-              timeouts: 0
-          passive:
-            healthy:
-              http_statuses: [200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306, 307, 308]
-              successes: 80
-            type: http
-            unhealthy:
-              http_failures: 5
-              http_statuses: [429, 500, 503]
-              tcp_failures: 5
-              timeouts: 5
-          threshold: 0
-        slots: 10000
-        tags:
+    _format_version: "3.0"
+    upstreams:
+    - name: routes.kongair
+      algorithm: round-robin
+      targets:
+      - tags:
         - resiliency
-        use_srv_name: false
+        target: routes.kongair:8080
+        weight: 100
+      hash_fallback: none
+      hash_on: none
+      hash_on_cookie_path: "/"
+      healthchecks:
+        active:
+          concurrency: 10
+          healthy:
+            http_statuses: [200, 302]
+            interval: 5
+            successes: 5
+          http_path: "/health"
+          https_verify_certificate: true
+          timeout: 1
+          type: http
+          unhealthy:
+            http_failures: 5
+            http_statuses: [404, 429, 500, 501, 502, 503, 504, 505]
+            interval: 5
+            tcp_failures: 5
+            timeouts: 0
+        passive:
+          healthy:
+            http_statuses: [200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306, 307, 308]
+            successes: 80
+          type: http
+          unhealthy:
+            http_failures: 5
+            http_statuses: [429, 500, 503]
+            tcp_failures: 5
+            timeouts: 5
+        threshold: 0
+      slots: 10000
+      tags:
+      - resiliency
+      use_srv_name: false
    ```
 
 2. Apply the Configuration:
@@ -950,7 +962,7 @@ simulate this behaviour using health checks and load balancing.
    docker start kongair-routes
    ```
 
-   Once the microservice is back up move on to the next section.
+   Once the microservice is back up move on to the next section, it may take a few seconds to detect the change by Kong Gateway.
 
 ### Configuring Retries and Timeouts
 
@@ -988,18 +1000,14 @@ and `Timeout` functionalities.
     
 3. Simulate artificial delays in the upstream service to test Kong’s retry and timeout handling:
 
-   - In the [**docker-compose.yaml**](./docker-compose.yaml) file find the `kongair-routes` service:
+    - In the [**docker-compose.yaml**](./docker-compose.yaml) file find the `kongair-routes` service:
 
      ```yaml
-     kongair-routes:
-      image: <REGISTRY>/kongair-routes:ws-<DATE>
-      container_name: kongair-routes
-      hostname: routes.kongair
-      restart: on-failure
-      networks:
-        - kong-net
-      ports:
-        - "5053:80"
+       kongair-routes:
+         container_name: ${KONG_MS_CONTAINER_NAME}
+         hostname: routes.kongair
+         restart: on-failure
+         image: ${KONG_MS_IMAGE_REGISTRY}/${KONG_MS_IMAGE_NAME}:${KONG_MS_IMAGE_TAG}
     ```
 
     - Use the image with the incremented tag, e.g. `image: <REGISTRY>/kongair-routes:ws-delays-<DATE>`, and remove/comment out the existing
@@ -1070,7 +1078,7 @@ stop too many inbound requests from overwhelming the system.
 
 1. Enable the Rate Limiting Plugin:
 
-   Update [**plugins.yaml**](./platform/plugins.yaml):
+   Update [**platform/plugins.yaml**](./platform/plugins.yaml):
 
    ```yaml
    - name: rate-limiting-advanced
@@ -1116,7 +1124,7 @@ stop too many inbound requests from overwhelming the system.
 
 4. Remove the Plugin after testing:
 
-   - Disable the plugin configuration from [**plugins.yaml**](./platform/plugins.yaml) by setting `enabled: false`
+   - Disable the plugin configuration from [**platform/plugins.yaml**](./platform/plugins.yaml) by setting `enabled: false`
 
    - Reapply the configuration using the approach in Step 2
 
@@ -1137,7 +1145,7 @@ the Gateway when consumers request information from the same endpoints frequentl
 
 1. Enable the Proxy Caching Plugin:
 
-   Update the [**plugins.yaml**](./platform/plugins.yaml) with the below configuration:
+   Update the [**platform/plugins.yaml**](./platform/plugins.yaml) with the below configuration:
 
    ```yaml
    - name: proxy-cache-advanced

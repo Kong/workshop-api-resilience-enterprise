@@ -25,7 +25,7 @@ tags:
 paths:
   /health:
     get:
-      summary: Health check endpoint for Kubernetes
+      summary: Health check
       description: Endpoint that returns the service health status for monitoring and load balancer checks.
       tags:
         - health
