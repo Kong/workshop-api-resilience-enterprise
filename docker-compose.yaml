@@ -156,13 +156,13 @@ services:
       KONG_STATUS_LISTEN: 0.0.0.0:8100
 
   kongair-routes:
-    # image: mohitjainkong/kongair-routes:1.1
-    # # image: mohitjainkong/kongair-routes:2.1
-    image: ${KONG_MS_IMAGE_REGISTRY}/${KONG_MS_IMAGE_NAME}:${KONG_MS_IMAGE_TAG}
-    # image: kongair-routes:workshop-delays-latest
     container_name: ${KONG_MS_CONTAINER_NAME}
     hostname: routes.kongair
     restart: on-failure
+    image: ${KONG_MS_IMAGE_REGISTRY}/${KONG_MS_IMAGE_NAME}:${KONG_MS_IMAGE_TAG}
+    # image: mohitjainkong/kongair-routes:1.1
+    # # image: mohitjainkong/kongair-routes:2.1
+    # image: kongair-routes:workshop-delays-latest
     networks:
       - kong-net
     ports:
