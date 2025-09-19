@@ -450,7 +450,7 @@ To enable the `prometheus` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
      curl http://localhost:8001/plugins
      ```
@@ -484,7 +484,7 @@ Enable the `http-log` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
      curl http://localhost:8001/plugins
      ```
@@ -518,7 +518,7 @@ Enable the `opentelemetry` plugin in Kong:
 
      <br/>
 
-     Alternatively, use the Admin API to list plugins for a given Service:
+     Alternatively, use the Admin API to list plugins:
      ```shell
      curl http://localhost:8001/plugins
      ```
@@ -569,7 +569,7 @@ To ensure that Kong Gateway is correctly routing requests to the Routes-Service,
 
     1. Open Insomnia and import a collection present at [**routes-oas.yaml**](./routes-oas.yaml)
 
-    2. In Insomnia, navigate to where the collection has been imported, then navigate to the `/health` endpoint (name in collection: `health/Health check endpoint for Kubernetes`). 
+    2. In Insomnia, navigate to where the collection has been imported, then navigate to the `/health` endpoint (name in collection: `health/Health check`). 
     Choose enviroment "OpenAPI env localhost:8000" to apply pre-configured values in URL templates.
 
     3. Send the request with expected output:
